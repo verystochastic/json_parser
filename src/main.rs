@@ -269,7 +269,42 @@ impl Parser {
     }
 
     fn parse_array(&mut self) -> Result<JsonValue, ParseError> {
-        todo!("Implement array parsing")
+        self.next_char();
+        self.skip_whitespace();
+
+        let mut elements = Vec::new();
+
+        if let Some(']') = self.peek_char() {
+            self.next_char();
+            return Ok(JsonValue::Array(elements));
+        }
+
+        loop {
+            let value = self.parse_value()?;
+            elements.push(value);
+
+            self.skip_whitespace();
+
+            match self.peek_char() {
+                Some(',') => {
+                    self.next_char();
+                    self.skip_whitespace();
+
+                    if let Some(']') = self.peek_char() {
+                        return Err(self.error("unexptected trailing comma in array"));
+
+                    }
+                }
+                Some(']') => {
+                    self.next_char();
+                    break;
+                }
+                Some(c) => return Err(self.error(&format!("expected ',' or ']' in array, found '{}'", c))),
+                None => return Err(self.error("unterminated array")),
+            }
+        }
+
+        Ok(JsonValue::Array(elements))
     }
 
     fn parse_object(&mut self) -> Result<JsonValue, ParseError> {
@@ -389,5 +424,37 @@ fn main() {
             Ok(other) => println!("expected number ({}), got: {:?}", expected, other),
             Err(e) => println!("failed to parse '{}': {}", input, e),
         }
+    }
+
+    // Test empty array
+    let mut parser = Parser::new("[]");
+    match parser.parse() {
+        Ok(JsonValue::Array(arr)) if arr.is_empty() => println!("✓ Empty array parsed correctly"),
+        Ok(other) => println!("✗ Expected empty array, got: {:?}", other),
+        Err(e) => println!("✗ Failed to parse empty array: {}", e),
+    }
+
+    // Test simple array
+    let mut parser = Parser::new("[1, 2, 3]");
+    match parser.parse() {
+        Ok(JsonValue::Array(arr)) if arr.len() == 3 => println!("✓ Simple array parsed correctly: {:?}", arr),
+        Ok(other) => println!("✗ Expected array with 3 elements, got: {:?}", other),
+        Err(e) => println!("✗ Failed to parse simple array: {}", e),
+    }
+
+    // Test mixed array
+    let mut parser = Parser::new("[null, true, \"hello\", 42]");
+    match parser.parse() {
+        Ok(JsonValue::Array(arr)) if arr.len() == 4 => println!("✓ Mixed array parsed correctly: {:?}", arr),
+        Ok(other) => println!("✗ Expected mixed array, got: {:?}", other),
+        Err(e) => println!("✗ Failed to parse mixed array: {}", e),
+    }
+
+    // Test nested array
+    let mut parser = Parser::new("[[1, 2], [3, 4]]");
+    match parser.parse() {
+        Ok(JsonValue::Array(_)) => println!("✓ Nested array parsed correctly"),
+        Ok(other) => println!("✗ Expected nested array, got: {:?}", other),
+        Err(e) => println!("✗ Failed to parse nested array: {}", e),
     }
 }
