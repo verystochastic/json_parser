@@ -308,7 +308,58 @@ impl Parser {
     }
 
     fn parse_object(&mut self) -> Result<JsonValue, ParseError> {
-        todo!("Implement object parsing")
+        self.next_char();
+        self.skip_whitespace();
+
+        let mut object = HashMap::new();
+
+        if let Some('{') = self.peek_char() {
+            self.next_char();
+            return Ok(JsonValue::Object(object));
+        }
+
+        loop {
+            self.skip_whitespace();
+            let key = match self.parse_string()? {
+                JsonValue::String(s) => s,
+                _ => return Err(self.error("object keys must be strings")),
+            };
+
+            self.skip_whitespace();
+            match self.next_char() {
+                Some(':') => {},
+                Some(c) => return Err(self.error(&format!("expected ':' after object key, found '{}'", c))),
+                None => return Err(self.error("expected ':' after object key, found end of input")),
+
+            }
+
+            self.skip_whitespace();
+            let value = self.parse_value()?;
+
+            object.insert(key, value);
+
+            self.skip_whitespace();
+
+            match self.peek_char() {
+                Some(',') => {
+                    self.next_char();
+                    self.skip_whitespace();
+
+                    if let Some('}') = self.peek_char() {
+                        return Err(self.error("unexpoected trailing comma in object"));
+                    }
+                }
+                Some('}') => {
+                    self.next_char();
+                    break;
+                }
+                Some(c) => return Err(self.error(&format!("expected ',' oor '}}' in object, found '{}'", c))),
+                None => return Err(self.error("unterminated object")),
+
+            }
+        }
+
+        Ok(JsonValue::Object(object))
     }
 }
 
@@ -456,5 +507,39 @@ fn main() {
         Ok(JsonValue::Array(_)) => println!("✓ Nested array parsed correctly"),
         Ok(other) => println!("✗ Expected nested array, got: {:?}", other),
         Err(e) => println!("✗ Failed to parse nested array: {}", e),
+    }
+
+    // Test empty object
+    let mut parser = Parser::new("{}");
+    match parser.parse() {
+        Ok(JsonValue::Object(obj)) if obj.is_empty() => println!("✓ Empty object parsed correctly"),
+        Ok(other) => println!("✗ Expected empty object, got: {:?}", other),
+        Err(e) => println!("✗ Failed to parse empty object: {}", e),
+    }
+
+    // Test simple object
+    let mut parser = Parser::new("{\"name\": \"John\", \"age\": 30}");
+    match parser.parse() {
+         Ok(JsonValue::Object(obj)) if obj.len() == 2 => {
+            println!("✓ Simple object parsed correctly: {:?}", obj);
+        }
+        Ok(other) => println!("✗ Expected object with 2 keys, got: {:?}", other),
+        Err(e) => println!("✗ Failed to parse simple object: {}", e),
+    }
+
+    // Test nested object
+    let mut parser = Parser::new("{\"person\": {\"name\": \"Alice\"}, \"active\": true}");
+    match parser.parse() {
+        Ok(JsonValue::Object(_)) => println!("✓ Nested object parsed correctly"),
+        Ok(other) => println!("✗ Expected nested object, got: {:?}", other),
+        Err(e) => println!("✗ Failed to parse nested object: {}", e),
+    }
+
+    // Test object with array
+    let mut parser = Parser::new("{\"numbers\": [1, 2, 3], \"valid\": true}");
+    match parser.parse() {
+        Ok(JsonValue::Object(_)) => println!("✓ Object with array parsed correctly"),
+        Ok(other) => println!("✗ Expected object with array, got: {:?}", other),
+        Err(e) => println!("✗ Failed to parse object with array: {}", e),
     }
 }
