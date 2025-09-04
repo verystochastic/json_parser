@@ -313,7 +313,7 @@ impl Parser {
 
         let mut object = HashMap::new();
 
-        if let Some('{') = self.peek_char() {
+        if let Some('}') = self.peek_char() {
             self.next_char();
             return Ok(JsonValue::Object(object));
         }
